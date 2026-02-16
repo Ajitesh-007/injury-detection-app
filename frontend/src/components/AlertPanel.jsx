@@ -23,53 +23,49 @@ export default function AlertPanel({ alerts }) {
         )
     }
 
-    return (
-        <div className="card">
-            <div className="card-header">
-                <span className="card-title">Alerts</span>
-                <span className="card-badge" style={{
-                    background: alerts[0]?.alert_level === 'RED' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                    color: alerts[0]?.alert_level === 'RED' ? '#ef4444' : '#f59e0b'
-                }}>
-                    {alerts.length}
-                </span>
-            </div>
 
+    return (
+        <div className="alert-list-container">
             <div className="alert-list">
-                {alerts.slice(0, 20).map((alert, idx) => (
+                {alerts.slice(0, 50).map((alert, idx) => (
                     <div
                         key={alert.id || idx}
                         className={`alert-item ${alert.alert_level?.toLowerCase()}`}
                         onClick={() => setExpanded(expanded === idx ? null : idx)}
+                        style={{
+                            marginBottom: '10px',
+                            padding: '10px',
+                            background: '#111',
+                            borderLeft: `4px solid ${alert.alert_level === 'RED' ? 'var(--alert-red)' : 'var(--alert-yellow)'}`,
+                            borderRadius: '0 4px 4px 0',
+                            cursor: 'pointer'
+                        }}
                     >
-                        <div className="alert-header">
-                            <span className="alert-level" style={{
-                                color: alert.alert_level === 'RED' ? '#ef4444' : '#f59e0b'
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                            <span style={{
+                                fontWeight: 'bold',
+                                color: alert.alert_level === 'RED' ? 'var(--alert-red)' : 'var(--alert-yellow)'
                             }}>
-                                {alert.alert_level === 'RED' ? '🔴' : '🟡'} {alert.alert_level}
+                                {alert.alert_level === 'RED' ? '🛑 DANGER' : '⚠️ WARNING'}
                             </span>
-                            <span className="alert-time">{alert.timestamp}</span>
+                            <span style={{ fontSize: '0.8rem', color: '#666', fontFamily: 'var(--font-mono)' }}>
+                                {alert.timestamp}
+                            </span>
                         </div>
-                        <div className="alert-message">
-                            {alert.injury_type && alert.injury_type !== 'Unknown' && (
-                                <strong>{alert.injury_type} — </strong>
-                            )}
-                            Risk: {alert.injury_probability?.toFixed(0)}%
-                            {alert.time_horizon && ` (${alert.time_horizon})`}
+
+                        <div style={{ fontSize: '0.9rem', color: '#ddd' }}>
+                            {alert.message}
                         </div>
 
                         {/* Expanded factors */}
-                        {expanded === idx && alert.contributing_factors?.length > 0 && (
-                            <div className="alert-factors">
-                                {alert.contributing_factors.map((factor, fi) => (
-                                    <div key={fi} className="alert-factor">{factor}</div>
+                        {expanded === idx && (
+                            <div style={{ marginTop: '10px', padding: '8px', background: '#222', borderRadius: '4px' }}>
+                                <div style={{ fontSize: '0.8rem', color: '#aaa', marginBottom: '4px' }}>CONTRIBUTING FACTORS:</div>
+                                {alert.contributing_factors?.map((factor, fi) => (
+                                    <div key={fi} style={{ fontSize: '0.85rem', color: '#fff', paddingLeft: '8px' }}>• {factor}</div>
                                 ))}
                                 {alert.recommended_action && (
-                                    <div style={{
-                                        marginTop: '8px', padding: '8px',
-                                        borderRadius: '6px', background: 'rgba(6, 182, 212, 0.08)',
-                                        fontSize: '0.72rem', color: '#06b6d4', lineHeight: 1.4
-                                    }}>
+                                    <div style={{ marginTop: '8px', color: 'var(--secondary)', fontSize: '0.9rem' }}>
                                         💡 {alert.recommended_action}
                                     </div>
                                 )}

@@ -1,1 +1,177 @@
-/* App-level overrides — empty, all styles in index.css */
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: radial-gradient(circle at center, #111 0%, #000 100%);
+}
+
+/* ─── Header ───────────────────────────────────────────────────────────── */
+.header {
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    background: rgba(0, 0, 0, 0.8);
+    border-bottom: 1px solid var(--border-color);
+    backdrop-filter: blur(10px);
+    z-index: 10;
+}
+
+.header-logo {
+    font-size: 24px;
+    margin-right: 12px;
+    text-shadow: 0 0 10px var(--primary);
+}
+
+.header h1 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin: 0;
+    color: var(--text-main);
+}
+
+.header h1 span {
+    color: var(--primary);
+}
+
+.status-badge {
+    padding: 6px 12px;
+    border-radius: 100px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-family: var(--font-mono);
+    background: #222;
+    border: 1px solid #333;
+    color: #666;
+    text-transform: uppercase;
+}
+
+.status-badge.green {
+    color: var(--primary);
+    border-color: var(--primary);
+    box-shadow: 0 0 10px var(--primary-glow);
+}
+
+.status-badge.yellow {
+    color: var(--alert-yellow);
+    border-color: var(--alert-yellow);
+    box-shadow: 0 0 10px rgba(255, 189, 42, 0.4);
+}
+
+.status-badge.red {
+    color: var(--alert-red);
+    border-color: var(--alert-red);
+    box-shadow: 0 0 10px rgba(255, 42, 42, 0.4);
+}
+
+/* ─── Main Grid ────────────────────────────────────────────────────────── */
+.main-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    /* Video takes mostly 1fr, panel fixed 340px */
+    gap: 0;
+    overflow: hidden;
+}
+
+/* Video Section */
+.video-section {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background: black;
+    border-right: 1px solid var(--border-color);
+    overflow: hidden;
+}
+
+.video-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.video-feed {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.video-overlay {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--primary);
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    pointer-events: none;
+}
+
+/* Metrics Bar (Overlay at bottom of video) */
+.metrics-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 80px;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.95), transparent);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 0 20px 20px 20px;
+}
+
+.metric-item {
+    text-align: center;
+}
+
+.metric-value {
+    display: block;
+    font-size: 2rem;
+    font-weight: 800;
+    font-family: var(--font-mono);
+    text-shadow: 0 0 15px currentColor;
+}
+
+.metric-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+}
+
+/* Right Panel */
+.right-panel {
+    background: var(--bg-panel);
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    gap: 20px;
+    overflow-y: auto;
+}
+
+/* Panel Cards */
+.panel-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 16px;
+    position: relative;
+}
+
+.panel-card h3 {
+    margin: 0 0 16px 0;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    border-bottom: 1px solid #333;
+    padding-bottom: 8px;
+    letter-spacing: 1px;
+}
