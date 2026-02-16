@@ -55,3 +55,50 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary);
 }
+
+/* Mobile Optimizations */
+@media (max-width: 768px) {
+  body {
+    overflow-y: auto;
+    /* Allow scrolling on mobile */
+  }
+}
+
+/* Touch-friendly interactions */
+button,
+a,
+[role="button"] {
+  min-width: 44px;
+  min-height: 44px;
+  /* iOS Human Interface Guidelines */
+  -webkit-tap-highlight-color: rgba(0, 255, 157, 0.2);
+}
+
+/* Prevent text selection on double-tap */
+* {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Allow text selection for specific elements */
+input,
+textarea,
+p,
+span {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* PWA safe area support (for notch/island) */
+body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Prevent pull-to-refresh on mobile */
+body {
+  overscroll-behavior-y: contain;
+}
