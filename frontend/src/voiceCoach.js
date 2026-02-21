@@ -76,7 +76,7 @@ export function speak(text, priority = PRIORITY.NORMAL, isMuted = false) {
     const utterance = new SpeechSynthesisUtterance(text)
 
     // Smooth, clear coaching voice settings
-    utterance.rate = 0.88   // Slightly slower = clearer, less robotic
+    utterance.rate = 0.97   // Natural coaching pace — clear and confident
     utterance.pitch = 1.05   // Slightly above neutral = warmer
     utterance.volume = 1.0
 

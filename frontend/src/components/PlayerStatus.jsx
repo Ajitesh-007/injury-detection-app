@@ -1,130 +1,194 @@
+/**
+ * PlayerStatus.jsx
+ * Premium 3D-style body heatmap with glowing joints and animated angle arc cards
+ */
+
 export default function PlayerStatus({ analysis }) {
     const joints = analysis?.joint_angles || {}
-    const asymmetry = analysis?.asymmetry || {}
     const issues = analysis?.issues || []
+    const active = Object.keys(joints).length > 0
+    const issueStr = issues.join(' ').toLowerCase()
 
-    // Group angles for display
-    const displayJoints = [
-        { name: 'L Knee', key: 'knee_left' },
-        { name: 'R Knee', key: 'knee_right' },
-        { name: 'L Hip', key: 'hip_left' },
-        { name: 'R Hip', key: 'hip_right' },
-        { name: 'L Shoulder', key: 'shoulder_left' },
-        { name: 'R Shoulder', key: 'shoulder_right' },
-        { name: 'L Elbow', key: 'elbow_left' },
-        { name: 'R Elbow', key: 'elbow_right' },
-        { name: 'Spine', key: 'spine_center' },
+    const JOINTS = [
+        { id: 'knee_left', label: 'L Knee', cx: 36, cy: 138, zone: 'knee' },
+        { id: 'knee_right', label: 'R Knee', cx: 64, cy: 138, zone: 'knee' },
+        { id: 'hip_left', label: 'L Hip', cx: 38, cy: 95, zone: 'hip' },
+        { id: 'hip_right', label: 'R Hip', cx: 62, cy: 95, zone: 'hip' },
+        { id: 'shoulder_left', label: 'L Shoulder', cx: 28, cy: 50, zone: 'shoulder' },
+        { id: 'shoulder_right', label: 'R Shoulder', cx: 72, cy: 50, zone: 'shoulder' },
+        { id: 'elbow_left', label: 'L Elbow', cx: 16, cy: 75, zone: 'elbow' },
+        { id: 'elbow_right', label: 'R Elbow', cx: 84, cy: 75, zone: 'elbow' },
+        { id: 'spine', label: 'Spine', cx: 50, cy: 70, zone: 'spine' },
     ]
 
+    function jointColor(id, zone) {
+        const val = joints[id]
+        if (!active || val == null) return { ring: '#2a3060', fill: '#1a1f38', glow: 'none' }
+        // Check if risky by issue text or threshold
+        const risky = issueStr.includes(zone)
+            || (zone === 'knee' && val < 70)
+            || (zone === 'shoulder' && val > 160)
+            || (zone === 'spine' && val > 25)
+        if (risky) return { ring: '#ff3b3b', fill: 'rgba(255,59,59,0.25)', glow: '0 0 10px #ff3b3b' }
+        if (val < 100) return { ring: '#ffbe2e', fill: 'rgba(255,190,46,0.15)', glow: '0 0 6px #ffbe2e' }
+        return { ring: '#00ff9d', fill: 'rgba(0,255,157,0.12)', glow: '0 0 6px #00ff9d' }
+    }
+
+    function boneColor(zone1, zone2) {
+        const r1 = issueStr.includes(zone1)
+        const r2 = issueStr.includes(zone2)
+        if (r1 || r2) return '#ff3b3b88'
+        if (active) return '#00ff9d44'
+        return '#2a3060'
+    }
+
     return (
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <div style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #333'
-            }}>
-                <span className="card-title" style={{ margin: 0 }}>Status</span>
-                <span className="card-badge" style={{
-                    background: 'rgba(6, 182, 212, 0.15)',
-                    color: '#06b6d4',
-                    fontSize: '0.7rem'
+        <div>
+            {/* Status row */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-dim)', letterSpacing: '2px' }}>
+                    {active ? `${Object.keys(joints).length} JOINTS` : 'SCANNING...'}
+                </span>
+                <span style={{
+                    padding: '2px 10px', borderRadius: '100px',
+                    fontFamily: 'var(--font-hud)', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '2px',
+                    background: active ? 'rgba(0,255,157,0.1)' : 'rgba(255,255,255,0.04)',
+                    color: active ? '#00ff9d' : 'var(--text-dim)',
+                    border: `1px solid ${active ? '#00ff9d44' : '#2a3060'}`,
                 }}>
-                    {Object.keys(joints).length > 0 ? 'ACTIVE' : 'WAITING'}
+                    {active ? 'LIVE' : 'WAITING'}
                 </span>
             </div>
 
-            <div style={{ flex: 1, display: 'flex', gap: '12px' }}>
-                {/* Body Diagram */}
-                <div className="body-diagram" style={{ flex: '0 0 100px', opacity: 0.8 }}>
-                    <svg viewBox="0 0 100 180" className="body-svg" fill="none">
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                {/* ── Body Diagram ── */}
+                <div style={{ flexShrink: 0, width: 88 }}>
+                    <svg viewBox="0 0 100 185" fill="none" style={{ width: '100%', overflow: 'visible' }}>
+                        <defs>
+                            <filter id="jglow"><feGaussianBlur stdDeviation="2.5" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+                        </defs>
+
                         {/* Head */}
-                        <circle cx="50" cy="20" r="12" stroke={getZoneColor('head', issues)} strokeWidth="2" />
+                        <circle cx="50" cy="18" r="13"
+                            stroke={active ? '#00e5ff88' : '#2a3060'} strokeWidth="2"
+                            fill={active ? 'rgba(0,229,255,0.08)' : 'transparent'}
+                            filter={active ? 'url(#jglow)' : 'none'}
+                        />
+
+                        {/* Bones (lines) */}
                         {/* Neck */}
-                        <line x1="50" y1="32" x2="50" y2="42" stroke="#444" strokeWidth="2" />
+                        <line x1="50" y1="31" x2="50" y2="46" stroke={boneColor('head', 'spine')} strokeWidth="2.5" strokeLinecap="round" />
+                        {/* Shoulders */}
+                        <line x1="28" y1="50" x2="72" y2="50" stroke={boneColor('shoulder', 'shoulder')} strokeWidth="2.5" strokeLinecap="round" />
                         {/* Torso */}
-                        <rect x="30" y="42" width="40" height="45" rx="5"
-                            stroke={getZoneColor('spine', issues)} strokeWidth="2" />
-                        {/* Left arm */}
-                        <line x1="30" y1="48" x2="12" y2="70" stroke={getZoneColor('shoulder_left', issues)} strokeWidth="2" />
-                        <line x1="12" y1="70" x2="8" y2="95" stroke={getZoneColor('elbow_left', issues)} strokeWidth="2" />
-                        {/* Right arm */}
-                        <line x1="70" y1="48" x2="88" y2="70" stroke={getZoneColor('shoulder_right', issues)} strokeWidth="2" />
-                        <line x1="88" y1="70" x2="92" y2="95" stroke={getZoneColor('elbow_right', issues)} strokeWidth="2" />
-                        {/* Left leg */}
-                        <line x1="38" y1="87" x2="30" y2="130" stroke={getZoneColor('hip_left', issues)} strokeWidth="2" />
-                        <line x1="30" y1="130" x2="25" y2="170" stroke={getZoneColor('knee_left', issues)} strokeWidth="2" />
-                        {/* Right leg */}
-                        <line x1="62" y1="87" x2="70" y2="130" stroke={getZoneColor('hip_right', issues)} strokeWidth="2" />
-                        <line x1="70" y1="130" x2="75" y2="170" stroke={getZoneColor('knee_right', issues)} strokeWidth="2" />
+                        <line x1="50" y1="50" x2="50" y2="92" stroke={boneColor('spine', 'hip')} strokeWidth="2.5" strokeLinecap="round" />
+                        {/* L arm upper */}
+                        <line x1="28" y1="50" x2="16" y2="75" stroke={boneColor('shoulder', 'elbow')} strokeWidth="2" strokeLinecap="round" />
+                        {/* L arm lower */}
+                        <line x1="16" y1="75" x2="10" y2="102" stroke={boneColor('elbow', 'wrist')} strokeWidth="2" strokeLinecap="round" />
+                        {/* R arm upper */}
+                        <line x1="72" y1="50" x2="84" y2="75" stroke={boneColor('shoulder', 'elbow')} strokeWidth="2" strokeLinecap="round" />
+                        {/* R arm lower */}
+                        <line x1="84" y1="75" x2="90" y2="102" stroke={boneColor('elbow', 'wrist')} strokeWidth="2" strokeLinecap="round" />
+                        {/* Hips */}
+                        <line x1="38" y1="92" x2="62" y2="92" stroke={boneColor('hip', 'hip')} strokeWidth="2.5" strokeLinecap="round" />
+                        {/* L leg upper */}
+                        <line x1="38" y1="92" x2="36" y2="138" stroke={boneColor('hip', 'knee')} strokeWidth="2.5" strokeLinecap="round" />
+                        {/* L leg lower */}
+                        <line x1="36" y1="138" x2="33" y2="178" stroke={boneColor('knee', 'ankle')} strokeWidth="2" strokeLinecap="round" />
+                        {/* R leg upper */}
+                        <line x1="62" y1="92" x2="64" y2="138" stroke={boneColor('hip', 'knee')} strokeWidth="2.5" strokeLinecap="round" />
+                        {/* R leg lower */}
+                        <line x1="64" y1="138" x2="67" y2="178" stroke={boneColor('knee', 'ankle')} strokeWidth="2" strokeLinecap="round" />
+
                         {/* Joint dots */}
-                        {[
-                            [50, 20], [30, 48], [70, 48], [12, 70], [88, 70],
-                            [38, 87], [62, 87], [30, 130], [70, 130], [25, 170], [75, 170]
-                        ].map(([cx, cy], i) => (
-                            <circle key={i} cx={cx} cy={cy} r="3" fill="#06b6d4" opacity="0.5" />
-                        ))}
+                        {JOINTS.map(j => {
+                            const { ring, fill, glow } = jointColor(j.id, j.zone)
+                            const val = joints[j.id]
+                            return (
+                                <g key={j.id} filter="url(#jglow)">
+                                    {/* Outer ring */}
+                                    <circle cx={j.cx} cy={j.cy} r="7" stroke={ring} strokeWidth="1.5" fill={fill} />
+                                    {/* Center dot */}
+                                    <circle cx={j.cx} cy={j.cy} r="2.5" fill={ring} />
+                                    {/* Angle micro-text */}
+                                    {val != null && (
+                                        <text x={j.cx} y={j.cy - 10} textAnchor="middle"
+                                            fill={ring} fontSize="5.5" fontFamily="var(--font-mono)" fontWeight="bold">
+                                            {val}°
+                                        </text>
+                                    )}
+                                </g>
+                            )
+                        })}
                     </svg>
                 </div>
 
-                {/* Joint Values */}
-                <div className="joint-readouts" style={{ flex: 1, overflowY: 'auto', fontSize: '0.8rem' }}>
-                    {displayJoints.map(({ name, key }) => {
-                        const val = joints[key]
+                {/* ── Joint Angle Cards ── */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    {JOINTS.map(j => {
+                        const val = joints[j.id]
+                        const { ring } = jointColor(j.id, j.zone)
+                        const pct = val != null ? Math.min(100, (val / 180) * 100) : 0
+
                         return (
-                            <div key={key} className="joint-item" style={{
-                                display: 'flex', justifyContent: 'space-between',
-                                borderBottom: '1px solid #222', padding: '4px 0'
+                            <div key={j.id} style={{
+                                background: '#0b0e1a',
+                                border: `1px solid ${val != null ? ring + '33' : '#1a1f38'}`,
+                                borderRadius: '6px',
+                                padding: '5px 8px',
+                                transition: 'border-color 0.3s',
                             }}>
-                                <span className="joint-name" style={{ color: '#888' }}>{name}</span>
-                                <span className="joint-value" style={{
-                                    fontFamily: 'var(--font-mono)',
-                                    color: getAngleColor(val)
-                                }}>
-                                    {val != null ? `${val.toFixed(0)}°` : '—'}
-                                </span>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
+                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6rem', color: 'var(--text-dim)', letterSpacing: '1px' }}>
+                                        {j.label.toUpperCase()}
+                                    </span>
+                                    <span style={{
+                                        fontFamily: 'var(--font-hud)', fontSize: '0.85rem', fontWeight: 700,
+                                        color: val != null ? ring : '#3a4060',
+                                        transition: 'color 0.3s',
+                                    }}>
+                                        {val != null ? `${val}°` : '—'}
+                                    </span>
+                                </div>
+                                {/* Angle bar */}
+                                <div style={{ height: '3px', background: '#1a1f38', borderRadius: '3px', overflow: 'hidden' }}>
+                                    <div style={{
+                                        height: '100%',
+                                        width: `${pct}%`,
+                                        background: ring,
+                                        boxShadow: val != null ? `0 0 4px ${ring}` : 'none',
+                                        borderRadius: '3px',
+                                        transition: 'width 0.4s ease, background 0.3s',
+                                    }} />
+                                </div>
                             </div>
                         )
                     })}
                 </div>
             </div>
 
-            {/* Asymmetry warnings */}
-            {Object.keys(asymmetry).length > 0 && (
-                <div style={{ marginTop: '12px', borderTop: '1px solid #333', paddingTop: '8px' }}>
-                    <div style={{ fontSize: '0.7rem', color: '#666', marginBottom: '4px', textTransform: 'uppercase' }}>
-                        Asymmetry
-                    </div>
-                    {Object.entries(asymmetry).slice(0, 3).map(([joint, diff]) => (
-                        <div key={joint} style={{
-                            display: 'flex', justifyContent: 'space-between',
-                            padding: '2px 0', fontSize: '0.75rem'
+            {/* Issues list */}
+            {issues.length > 0 && (
+                <div style={{
+                    marginTop: '10px',
+                    padding: '8px 10px',
+                    background: 'rgba(255,59,59,0.06)',
+                    border: '1px solid rgba(255,59,59,0.25)',
+                    borderRadius: '6px',
+                    maxHeight: '72px',
+                    overflowY: 'auto',
+                }}>
+                    {issues.slice(0, 3).map((iss, i) => (
+                        <div key={i} style={{
+                            fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: '#ff6666',
+                            padding: '2px 0', borderBottom: i < Math.min(issues.length, 3) - 1 ? '1px solid rgba(255,59,59,0.15)' : 'none',
                         }}>
-                            <span style={{ textTransform: 'capitalize', color: '#aaa' }}>{joint}</span>
-                            <span style={{
-                                fontFamily: 'var(--font-mono)',
-                                color: diff > 15 ? '#ef4444' : diff > 8 ? '#f59e0b' : '#22c55e'
-                            }}>
-                                {diff.toFixed(1)}°
-                            </span>
+                            ⚠ {iss}
                         </div>
                     ))}
                 </div>
             )}
         </div>
     )
-}
-
-function getZoneColor(zone, issues) {
-    const issueStr = issues.join(' ').toLowerCase()
-    const zoneLower = zone.toLowerCase().replace('_', ' ')
-    if (issueStr.includes(zoneLower) || issueStr.includes(zone.split('_')[0])) {
-        return '#ef4444'
-    }
-    return '#64748b'
-}
-
-function getAngleColor(val) {
-    if (val == null) return '#64748b'
-    if (val < 40 || val > 175) return '#ef4444'
-    if (val < 60 || val > 165) return '#f59e0b'
-    return '#22c55e'
 }
