@@ -1,7 +1,19 @@
-import { useMemo } from 'react'
+import { useMemo, useEffect } from 'react'
 
 export default function AROverlay({ analysis, width = 640, height = 480 }) {
-    if (!analysis || !analysis.skeleton_landmarks) return null
+    // Debug logging
+    useEffect(() => {
+        if (analysis && analysis.skeleton_landmarks) {
+            console.log('AROverlay: Received landmarks:', analysis.skeleton_landmarks.length)
+            const visibleCount = analysis.skeleton_landmarks.filter(lm => lm[3] > 0.3).length
+            console.log('AROverlay: Visible landmarks (>0.3):', visibleCount)
+        }
+    }, [analysis])
+
+    if (!analysis || !analysis.skeleton_landmarks) {
+        console.log('AROverlay: No analysis or landmarks')
+        return null
+    }
 
     const landmarks = analysis.skeleton_landmarks
     const issues = analysis.issues || []
@@ -58,8 +70,8 @@ export default function AROverlay({ analysis, width = 640, height = 480 }) {
             {CONNECTIONS.map(([start, end], i) => {
                 const p1 = landmarks[start]
                 const p2 = landmarks[end]
-                // Check visibility
-                if (!p1 || !p2 || p1[3] < 0.5 || p2[3] < 0.5) return null
+                // Check visibility - lowered threshold for better detection
+                if (!p1 || !p2 || p1[3] < 0.3 || p2[3] < 0.3) return null
 
                 const status1 = getJointStatus(start)
                 const status2 = getJointStatus(end)
@@ -79,8 +91,8 @@ export default function AROverlay({ analysis, width = 640, height = 480 }) {
 
             {/* Draw Joints */}
             {landmarks.map((lm, i) => {
-                // Only draw main body joints (11-32)
-                if (i < 11 || i > 32 || lm[3] < 0.5) return null
+                // Only draw main body joints (11-32) - lowered visibility threshold
+                if (i < 11 || i > 32 || lm[3] < 0.3) return null
 
                 const status = getJointStatus(i)
                 const color = getColor(status)
@@ -90,7 +102,7 @@ export default function AROverlay({ analysis, width = 640, height = 480 }) {
                         key={i}
                         cx={lm[0]}
                         cy={lm[1]}
-                        r={status === 'danger' ? 0.012 : 0.008}
+                        r={status === 'danger' ? 0.015 : 0.010}
                         fill={color}
                         stroke="rgba(0,0,0,0.5)"
                         strokeWidth="0.002"
