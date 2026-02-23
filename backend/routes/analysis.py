@@ -230,7 +230,12 @@ def _decode_frame(b64: str) -> Optional[np.ndarray]:
         arr  = np.frombuffer(data, np.uint8)
         frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
         if frame is not None:
-            frame = cv2.resize(frame, (PROCESS_FRAME_WIDTH, PROCESS_FRAME_HEIGHT))
+            # Preserve aspect ratio while resizing
+            h, w = frame.shape[:2]
+            max_dim = max(PROCESS_FRAME_WIDTH, PROCESS_FRAME_HEIGHT)
+            scale = max_dim / max(h, w)
+            new_w, new_h = int(w * scale), int(h * scale)
+            frame = cv2.resize(frame, (new_w, new_h))
         return frame
     except Exception as exc:
         logger.debug(f"Frame decode error: {exc}")
