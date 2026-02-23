@@ -24,6 +24,7 @@ function App() {
   const isMutedRef = useRef(false)
   const [goodStreak, setGoodStreak] = useState(0)
   const [postureWarning, setPostureWarning] = useState(null)
+  const [showSkeleton, setShowSkeleton] = useState(true)
 
   const handleMuteToggle = useCallback(() => {
     setIsMuted(p => {
@@ -263,6 +264,18 @@ function App() {
     }
   }, [])
 
+  const handleExportData = () => {
+    if (riskHistory.length === 0) {
+      alert("No session data to export yet. Please run an analysis first.")
+      return
+    }
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(riskHistory, null, 2))
+    const dlAnchorElem = document.createElement('a')
+    dlAnchorElem.setAttribute("href", dataStr)
+    dlAnchorElem.setAttribute("download", `injuryguard_session_${Date.now()}.json`)
+    dlAnchorElem.click()
+  }
+
   const alertLevel = analysis?.alert_level || 'GREEN'
 
   const getBannerType = () => {
@@ -336,9 +349,11 @@ function App() {
             />
 
             {/* AR Skeleton Overlay (Mirrored to match video) */}
-            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', transform: 'scaleX(-1)' }}>
-              <AROverlay analysis={analysis} />
-            </div>
+            {showSkeleton && (
+              <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', transform: 'scaleX(-1)' }}>
+                <AROverlay analysis={analysis} />
+              </div>
+            )}
 
             {/* Overlay Info (Top Left) */}
             <div className="video-overlay">
@@ -352,15 +367,53 @@ function App() {
                     border: '1px solid rgba(255,255,255,0.1)',
                     borderRadius: 'var(--radius-pill)',
                     color: isMuted ? 'var(--alert-red)' : 'var(--primary)',
-                    padding: '2px 10px',
+                    padding: '4px 12px',
+                    cursor: 'pointer',
+                    fontSize: '0.72rem',
+                    fontFamily: 'var(--font-mono)',
+                    transition: 'all 0.2s',
+                    pointerEvents: 'auto',
+                    boxShadow: isMuted ? '0 0 10px rgba(var(--alert-red-rgb),0.2)' : '0 0 10px rgba(var(--primary-rgb),0.2)',
+                  }}
+                >
+                  {isMuted ? '🔇 MUTED' : '🔊 SOUND'}
+                </button>
+                <button
+                  onClick={() => setShowSkeleton(p => !p)}
+                  style={{
+                    background: showSkeleton ? 'rgba(var(--primary-rgb),0.15)' : 'rgba(255,255,255,0.05)',
+                    border: showSkeleton ? '1px solid var(--primary)' : '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 'var(--radius-pill)',
+                    color: showSkeleton ? 'var(--primary)' : 'var(--text-dim)',
+                    padding: '4px 12px',
+                    cursor: 'pointer',
+                    fontSize: '0.72rem',
+                    fontFamily: 'var(--font-mono)',
+                    transition: 'all 0.2s',
+                    pointerEvents: 'auto',
+                    boxShadow: showSkeleton ? '0 0 10px rgba(var(--primary-rgb),0.3)' : 'none',
+                  }}
+                >
+                  {showSkeleton ? '👁️ SKELETON: ON' : '👁️ SKELETON: OFF'}
+                </button>
+                <button
+                  onClick={handleExportData}
+                  style={{
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 'var(--radius-pill)',
+                    color: 'var(--text-dim)',
+                    padding: '4px 12px',
                     cursor: 'pointer',
                     fontSize: '0.72rem',
                     fontFamily: 'var(--font-mono)',
                     transition: 'all 0.2s',
                     pointerEvents: 'auto',
                   }}
+                  onMouseEnter={e => { e.target.style.color = '#fff'; e.target.style.borderColor = '#fff' }}
+                  onMouseLeave={e => { e.target.style.color = 'var(--text-dim)'; e.target.style.borderColor = 'rgba(255,255,255,0.1)' }}
                 >
-                  {isMuted ? '🔇 OFF' : '🔊 ON'}
+                  ⬇️ EXPORT
                 </button>
               </div>
               <div style={{ marginTop: '4px', opacity: 0.5 }}>

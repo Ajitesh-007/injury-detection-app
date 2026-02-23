@@ -105,7 +105,7 @@ async def status():
     """Check model readiness."""
     import os
     from config import MODELS_DIR
-    pose_ok = os.path.isfile(os.path.join(MODELS_DIR, "pose_landmarker_lite.task"))
+    pose_ok = os.path.isfile(os.path.join(MODELS_DIR, "pose_landmarker_heavy.task"))
     face_ok = os.path.isfile(os.path.join(MODELS_DIR, "face_landmarker.task"))
     return {
         "pose_model": "ready" if pose_ok else "downloading",

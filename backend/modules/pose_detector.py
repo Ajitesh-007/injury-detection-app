@@ -30,7 +30,7 @@ from config import (
 
 logger = logging.getLogger(__name__)
 
-MODEL_PATH = os.path.join(MODELS_DIR, "pose_landmarker_lite.task")
+MODEL_PATH = os.path.join(MODELS_DIR, "pose_landmarker_heavy.task")
 
 # ─── Data classes ────────────────────────────────────────────────────────
 
@@ -153,7 +153,7 @@ class PoseDetector:
             import mediapipe as mp
             self._legacy_pose = mp.solutions.pose.Pose(
                 static_image_mode=True,
-                model_complexity=0,
+                model_complexity=2,
                 min_detection_confidence=POSE_CONFIDENCE_THRESHOLD,
                 min_tracking_confidence=POSE_TRACKING_CONFIDENCE,
             )

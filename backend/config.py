@@ -15,8 +15,8 @@ YELLOW_THRESHOLD = 35   # risk score above this → YELLOW
 RED_THRESHOLD    = 70   # risk score above this → RED
 
 # ─── Pose Detection ─────────────────────────────────────────────────────
-POSE_CONFIDENCE_THRESHOLD  = 0.3
-POSE_TRACKING_CONFIDENCE   = 0.2
+POSE_CONFIDENCE_THRESHOLD  = 0.5
+POSE_TRACKING_CONFIDENCE   = 0.5
 FACE_CONFIDENCE_THRESHOLD  = 0.3
 
 # ─── Fatigue Detection ──────────────────────────────────────────────────
@@ -71,9 +71,9 @@ SUDDEN_ANGLE_CHANGE_THRESHOLD = 40   # degrees change in one frame
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "models_data")
 
 MODEL_URLS = {
-    "pose_landmarker_lite.task": (
+    "pose_landmarker_heavy.task": (
         "https://storage.googleapis.com/mediapipe-models/"
-        "pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task"
+        "pose_landmarker/pose_landmarker_heavy/float16/latest/pose_landmarker_heavy.task"
     ),
     "face_landmarker.task": (
         "https://storage.googleapis.com/mediapipe-models/"

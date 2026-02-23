@@ -63,6 +63,14 @@ export default function AROverlay({ analysis }) {
 
     // Get current landmarks
     const rawLandmarks = analysis?.skeleton_landmarks || null
+    useEffect(() => {
+        if (rawLandmarks) {
+            console.log("Raw Landmarks Received:", rawLandmarks.length, rawLandmarks.slice(0, 1));
+        } else {
+            console.log("No raw landmarks received in AROverlay.");
+        }
+    }, [rawLandmarks])
+
     const issues = analysis?.issues || []
     const postureAlerts = analysis?.posture_alerts || []
 

@@ -210,10 +210,19 @@ function AnimatedBody({ pos, issues, dangerJointSet }) {
             {/* Right leg */}
             <line x1={pts.rh.x} y1={pts.rh.y} x2={pts.rk.x} y2={pts.rk.y} stroke={getC('hip_right')} strokeWidth="1.5" />
             <line x1={pts.rk.x} y1={pts.rk.y} x2={pts.ra.x} y2={pts.ra.y} stroke={getC('knee_right')} strokeWidth="1.5" />
-            {/* Joint dots */}
-            {Object.values(pts).map((p, i) => (
-                <circle key={i} cx={p.x} cy={p.y} r="2.5" fill="var(--secondary)" opacity="0.7" />
-            ))}
+            {/* Joint dots & Heatmap Halos */}
+            {Object.entries(pts).map(([key, p], i) => {
+                const isDanger = dangerJointSet.has(key) || getC(key) === '#ff3b5c'
+                return (
+                    <g key={i}>
+                        {isDanger && (
+                            <circle cx={p.x} cy={p.y} r="12" fill="var(--alert-red)" opacity="0.3"
+                                style={{ filter: 'blur(3px)', animation: 'pulse-danger 1.5s infinite' }} />
+                        )}
+                        <circle cx={p.x} cy={p.y} r="2.5" fill={isDanger ? '#fff' : 'var(--secondary)'} opacity={isDanger ? "1" : "0.7"} />
+                    </g>
+                )
+            })}
         </>
     )
 }

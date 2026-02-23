@@ -75,7 +75,20 @@ export default function VideoFeed({ streaming, onToggle, onFrame, analysis, conn
     }, [onFrame])
 
     return (
-        <div style={{ position: 'relative', width: '100%', height: '100%', background: '#000' }}>
+        <div style={{
+            position: 'relative', width: '100%', height: '100%',
+            background: '#040406',
+            borderRadius: 'var(--radius-lg)',
+            overflow: 'hidden',
+            boxShadow: 'inset 0 0 40px rgba(0,0,0,0.8), 0 0 20px rgba(var(--primary-rgb), 0.15)',
+            border: '2px solid rgba(255,255,255,0.03)'
+        }}>
+            {/* Cyberpunk Bezel Accents */}
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '30px', height: '30px', borderTop: '2px solid var(--primary)', borderLeft: '2px solid var(--primary)', zIndex: 10, opacity: 0.7 }} />
+            <div style={{ position: 'absolute', top: 0, right: 0, width: '30px', height: '30px', borderTop: '2px solid var(--primary)', borderRight: '2px solid var(--primary)', zIndex: 10, opacity: 0.7 }} />
+            <div style={{ position: 'absolute', bottom: 0, left: 0, width: '30px', height: '30px', borderBottom: '2px solid var(--secondary)', borderLeft: '2px solid var(--secondary)', zIndex: 10, opacity: 0.7 }} />
+            <div style={{ position: 'absolute', bottom: 0, right: 0, width: '30px', height: '30px', borderBottom: '2px solid var(--secondary)', borderRight: '2px solid var(--secondary)', zIndex: 10, opacity: 0.7 }} />
+
             {streaming && hasCamera ? (
                 <>
                     <video
@@ -87,7 +100,8 @@ export default function VideoFeed({ streaming, onToggle, onFrame, analysis, conn
                             width: '100%',
                             height: '100%',
                             objectFit: 'contain',
-                            transform: 'scaleX(-1)'
+                            transform: 'scaleX(-1)',
+                            filter: 'contrast(1.05) saturate(1.1)'
                         }}
                     />
                     <canvas ref={canvasRef} style={{ display: 'none' }} />
