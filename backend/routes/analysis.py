@@ -21,7 +21,8 @@ from typing import Optional
 
 import cv2
 import numpy as np
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, WebSocketState
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocketState
 from pydantic import BaseModel
 
 from config import (
