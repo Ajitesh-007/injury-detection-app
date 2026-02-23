@@ -3,65 +3,80 @@ Central configuration for the Injury Detection & Risk Prediction System.
 All thresholds, constants, and tunable parameters live here.
 """
 
+import os
+
 # ─── Alert Levels ────────────────────────────────────────────────────────
-ALERT_GREEN = "GREEN"
+ALERT_GREEN  = "GREEN"
 ALERT_YELLOW = "YELLOW"
-ALERT_RED = "RED"
+ALERT_RED    = "RED"
 
 # ─── Risk Score Thresholds ───────────────────────────────────────────────
-YELLOW_THRESHOLD = 35  # risk score above this → YELLOW
-RED_THRESHOLD = 70     # risk score above this → RED
+YELLOW_THRESHOLD = 35   # risk score above this → YELLOW
+RED_THRESHOLD    = 70   # risk score above this → RED
 
 # ─── Pose Detection ─────────────────────────────────────────────────────
-POSE_CONFIDENCE_THRESHOLD = 0.3      # lowered for better detection
-POSE_TRACKING_CONFIDENCE = 0.2       # lower tracking = smoother between detections
-FACE_CONFIDENCE_THRESHOLD = 0.3      # lowered for more detections
+POSE_CONFIDENCE_THRESHOLD  = 0.3
+POSE_TRACKING_CONFIDENCE   = 0.2
+FACE_CONFIDENCE_THRESHOLD  = 0.3
 
 # ─── Fatigue Detection ──────────────────────────────────────────────────
-FATIGUE_WINDOW_SECONDS = 60       # rolling window for fatigue tracking
-FATIGUE_ANGLE_DRIFT_THRESHOLD = 8  # degrees of drift that indicate fatigue
+FATIGUE_WINDOW_SECONDS      = 60
+FATIGUE_ANGLE_DRIFT_THRESHOLD = 8   # degrees of drift that indicate fatigue
 
 # ─── Object Tracking ────────────────────────────────────────────────────
-PIXELS_PER_METER = 200            # calibration factor (adjustable)
-FRAME_RATE = 30                   # default assumed FPS
-BALL_MIN_CONTOUR_AREA = 100       # minimum contour area to consider as ball
-BALL_MAX_CONTOUR_AREA = 5000      # maximum contour area
+PIXELS_PER_METER     = 200
+FRAME_RATE           = 30
+BALL_MIN_CONTOUR_AREA = 100
+BALL_MAX_CONTOUR_AREA = 5000
 
 # ─── Facial Stress ──────────────────────────────────────────────────────
-PAIN_EXPRESSION_THRESHOLD = 0.6   # above this → pain detected
+PAIN_EXPRESSION_THRESHOLD    = 0.6
 SKIN_STRESS_REDNESS_THRESHOLD = 0.4
 SKIN_STRESS_PALENESS_THRESHOLD = 0.3
 
 # ─── Prediction Engine ──────────────────────────────────────────────────
-SYNTHETIC_SAMPLES_PER_SPORT = 5000
-MODEL_RANDOM_STATE = 42
-N_ESTIMATORS = 100
+SYNTHETIC_SAMPLES_PER_SPORT = 3000   # reduced for faster startup
+MODEL_RANDOM_STATE           = 42
+N_ESTIMATORS                 = 80    # reduced for faster startup
 
-# ─── Alert System ────────────────────────────────────────────────────────
-ALERT_HISTORY_MAX = 100           # keep last N alerts
-ALERT_COOLDOWN_SECONDS = 3        # minimum time between same-level alerts
+# ─── Alert System ───────────────────────────────────────────────────────
+ALERT_HISTORY_MAX    = 100
+ALERT_COOLDOWN_SECONDS = 3
 
 # ─── Supported Sports ───────────────────────────────────────────────────
 SUPPORTED_SPORTS = ["football", "cricket", "weightlifting", "generic"]
 
 # ─── WebSocket ───────────────────────────────────────────────────────────
-WS_FRAME_SKIP = 1  # process every frame (frames are now smaller/faster)
+WS_FRAME_SKIP = 1   # process every frame (frontend sends at ~6-12 fps)
 
-# ─── Frame Processing ───────────────────────────────────────────────────
-PROCESS_FRAME_WIDTH = 320         # resize frames before ML inference
+# ─── Frame Processing ────────────────────────────────────────────────────
+PROCESS_FRAME_WIDTH  = 320
 PROCESS_FRAME_HEIGHT = 240
 SECONDARY_ANALYSIS_INTERVAL = 3   # run face/object every Nth processed frame
 
 # ─── CORS ────────────────────────────────────────────────────────────────
-CORS_ORIGINS = ["*"]  # Allow all origins (Vercel frontend, localhost dev, etc.)
+CORS_ORIGINS = ["*"]
 
 # ─── Abnormal Posture Detection ──────────────────────────────────────────
-# Safe angle ranges per joint: (min_angle, max_angle)
 SAFE_ANGLE_RANGES = {
-    "knee":     (10, 180),    # <10° = backward bend / hyperextension
-    "elbow":    (10, 180),    # <10° = hyperextension
-    "shoulder": (0, 175),     # >175° = hyperextension
-    "hip":      (15, 180),    # <15° = unnatural bend
-    "spine":    (100, 180),   # <100° = extreme spinal flexion
+    "knee":     (10, 180),
+    "elbow":    (10, 180),
+    "shoulder": (0,  175),
+    "hip":      (15, 180),
+    "spine":    (100, 180),
 }
-SUDDEN_ANGLE_CHANGE_THRESHOLD = 40  # degrees change in one frame = potential injury
+SUDDEN_ANGLE_CHANGE_THRESHOLD = 40   # degrees change in one frame
+
+# ─── Model Files ─────────────────────────────────────────────────────────
+MODELS_DIR = os.path.join(os.path.dirname(__file__), "models_data")
+
+MODEL_URLS = {
+    "pose_landmarker_lite.task": (
+        "https://storage.googleapis.com/mediapipe-models/"
+        "pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task"
+    ),
+    "face_landmarker.task": (
+        "https://storage.googleapis.com/mediapipe-models/"
+        "face_landmarker/face_landmarker/float16/latest/face_landmarker.task"
+    ),
+}

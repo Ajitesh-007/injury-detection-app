@@ -1,11 +1,14 @@
 """
-Pose Detection Module
-=====================
-Uses MediaPipe Tasks PoseLandmarker to extract body keypoints, compute
-joint angles, detect posture asymmetry, track fatigue degradation,
-and detect abnormal/dangerous joint positions.
+Pose Detection Module — Robust Rewrite
+=======================================
+Uses MediaPipe Tasks PoseLandmarker. Falls back gracefully if the model
+file is missing or the Tasks API fails. The detector is NEVER instantiated
+at import time — use `get_pose_detector()` lazy singleton instead.
 """
 
+from __future__ import annotations
+
+import logging
 import math
 import os
 import time
@@ -13,27 +16,23 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 import cv2
-import mediapipe as mp
 import numpy as np
-from mediapipe.tasks.python import BaseOptions
-from mediapipe.tasks.python.vision import (
-    PoseLandmarker,
-    PoseLandmarkerOptions,
-    RunningMode,
-)
 
 from config import (
     FATIGUE_ANGLE_DRIFT_THRESHOLD,
     FATIGUE_WINDOW_SECONDS,
+    MODELS_DIR,
     POSE_CONFIDENCE_THRESHOLD,
     POSE_TRACKING_CONFIDENCE,
     SAFE_ANGLE_RANGES,
     SUDDEN_ANGLE_CHANGE_THRESHOLD,
 )
 
-# Path to the downloaded model file
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "models_data", "pose_landmarker_lite.task")
+logger = logging.getLogger(__name__)
 
+MODEL_PATH = os.path.join(MODELS_DIR, "pose_landmarker_lite.task")
+
+# ─── Data classes ────────────────────────────────────────────────────────
 
 @dataclass
 class JointAngle:
@@ -46,11 +45,10 @@ class JointAngle:
 
 @dataclass
 class PostureAlert:
-    """Alert generated when a joint is in an abnormal/dangerous position."""
     joint: str
     side: str
     message: str
-    severity: str  # "warning" or "danger"
+    severity: str   # "warning" | "danger"
     angle: float
     safe_min: float
     safe_max: float
@@ -69,6 +67,8 @@ class PoseAnalysis:
     issues: List[str] = field(default_factory=list)
 
 
+# ─── Constants ───────────────────────────────────────────────────────────
+
 LANDMARK_NAMES = {
     0: "nose", 1: "left_eye_inner", 2: "left_eye", 3: "left_eye_outer",
     4: "right_eye_inner", 5: "right_eye", 6: "right_eye_outer",
@@ -83,79 +83,99 @@ LANDMARK_NAMES = {
 }
 
 ANGLE_DEFINITIONS = [
-    ("knee", "left", "left_hip", "left_knee", "left_ankle"),
-    ("knee", "right", "right_hip", "right_knee", "right_ankle"),
-    ("elbow", "left", "left_shoulder", "left_elbow", "left_wrist"),
-    ("elbow", "right", "right_shoulder", "right_elbow", "right_wrist"),
-    ("shoulder", "left", "left_elbow", "left_shoulder", "left_hip"),
-    ("shoulder", "right", "right_elbow", "right_shoulder", "right_hip"),
-    ("hip", "left", "left_shoulder", "left_hip", "left_knee"),
-    ("hip", "right", "right_shoulder", "right_hip", "right_knee"),
-    ("spine", "center", "left_shoulder", "left_hip", "left_knee"),
+    ("knee",     "left",   "left_hip",     "left_knee",     "left_ankle"),
+    ("knee",     "right",  "right_hip",    "right_knee",    "right_ankle"),
+    ("elbow",    "left",   "left_shoulder","left_elbow",    "left_wrist"),
+    ("elbow",    "right",  "right_shoulder","right_elbow",  "right_wrist"),
+    ("shoulder", "left",   "left_elbow",   "left_shoulder", "left_hip"),
+    ("shoulder", "right",  "right_elbow",  "right_shoulder","right_hip"),
+    ("hip",      "left",   "left_shoulder","left_hip",      "left_knee"),
+    ("hip",      "right",  "right_shoulder","right_hip",    "right_knee"),
+    ("spine",    "center", "left_shoulder","left_hip",      "left_knee"),
 ]
 
 SKELETON_CONNECTIONS = [
-    ("left_shoulder", "right_shoulder"),
-    ("left_shoulder", "left_elbow"), ("left_elbow", "left_wrist"),
-    ("right_shoulder", "right_elbow"), ("right_elbow", "right_wrist"),
-    ("left_shoulder", "left_hip"), ("right_shoulder", "right_hip"),
-    ("left_hip", "right_hip"),
-    ("left_hip", "left_knee"), ("left_knee", "left_ankle"),
-    ("right_hip", "right_knee"), ("right_knee", "right_ankle"),
+    ("left_shoulder",  "right_shoulder"),
+    ("left_shoulder",  "left_elbow"),   ("left_elbow",  "left_wrist"),
+    ("right_shoulder", "right_elbow"),  ("right_elbow", "right_wrist"),
+    ("left_shoulder",  "left_hip"),     ("right_shoulder","right_hip"),
+    ("left_hip",       "right_hip"),
+    ("left_hip",       "left_knee"),    ("left_knee",   "left_ankle"),
+    ("right_hip",      "right_knee"),   ("right_knee",  "right_ankle"),
 ]
 
 
+# ─── PoseDetector ────────────────────────────────────────────────────────
+
 class PoseDetector:
-    """Real-time pose detection and biomechanical analysis."""
+    """Real-time pose detection. Initialises lazily; returns None on failure."""
 
     def __init__(self):
-        options = PoseLandmarkerOptions(
-            base_options=BaseOptions(model_asset_path=MODEL_PATH),
-            running_mode=RunningMode.IMAGE,
-            num_poses=1,
-            min_pose_detection_confidence=POSE_CONFIDENCE_THRESHOLD,
-            min_tracking_confidence=POSE_TRACKING_CONFIDENCE,
-        )
-        self.landmarker = PoseLandmarker.create_from_options(options)
+        self._available = False
+        self._use_legacy = False
+        self._landmarker = None
+        self._legacy_pose = None
         self._baseline_angles: Optional[Dict[str, float]] = None
         self._angle_history: List[Tuple[float, Dict[str, float]]] = []
-        self._prev_angles: Dict[str, float] = {}  # For sudden change detection
+        self._prev_angles: Dict[str, float] = {}
         self._start_time = time.time()
+        self._init_detector()
+
+    def _init_detector(self):
+        """Try Tasks API first, fall back to legacy mp.solutions.pose."""
+        # ── Try MediaPipe Tasks API ──────────────────────────────────────
+        if os.path.isfile(MODEL_PATH):
+            try:
+                import mediapipe as mp
+                from mediapipe.tasks.python import BaseOptions
+                from mediapipe.tasks.python.vision import (
+                    PoseLandmarker,
+                    PoseLandmarkerOptions,
+                    RunningMode,
+                )
+                opts = PoseLandmarkerOptions(
+                    base_options=BaseOptions(model_asset_path=MODEL_PATH),
+                    running_mode=RunningMode.IMAGE,
+                    num_poses=1,
+                    min_pose_detection_confidence=POSE_CONFIDENCE_THRESHOLD,
+                    min_tracking_confidence=POSE_TRACKING_CONFIDENCE,
+                )
+                self._landmarker = PoseLandmarker.create_from_options(opts)
+                self._available = True
+                self._use_legacy = False
+                logger.info("PoseDetector: using MediaPipe Tasks API")
+                return
+            except Exception as exc:
+                logger.warning(f"Tasks API init failed: {exc} — trying legacy API")
+
+        # ── Fall back to legacy mp.solutions.pose ────────────────────────
+        try:
+            import mediapipe as mp
+            self._legacy_pose = mp.solutions.pose.Pose(
+                static_image_mode=True,
+                model_complexity=0,
+                min_detection_confidence=POSE_CONFIDENCE_THRESHOLD,
+                min_tracking_confidence=POSE_TRACKING_CONFIDENCE,
+            )
+            self._available = True
+            self._use_legacy = True
+            logger.info("PoseDetector: using legacy MediaPipe Pose API")
+        except Exception as exc:
+            logger.error(f"PoseDetector unavailable: {exc}")
+            self._available = False
+
+    # ─── Public API ──────────────────────────────────────────────────────
 
     def analyze_frame(self, frame: np.ndarray) -> Optional[PoseAnalysis]:
-        """Analyze a single BGR frame. Returns PoseAnalysis or None."""
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
-
-        results = self.landmarker.detect(mp_image)
-
-        if not results.pose_landmarks or len(results.pose_landmarks) == 0:
+        if not self._available:
             return None
-
-        landmarks = results.pose_landmarks[0]
-
-        keypoints = self._extract_keypoints(landmarks)
-        joint_angles = self._compute_all_angles(keypoints)
-        asymmetry = self._detect_asymmetry(joint_angles)
-        fatigue_score = self._compute_fatigue(joint_angles)
-
-        # Abnormal posture detection
-        posture_alerts = self._detect_abnormal_posture(joint_angles)
-
-        issues = []
-        overall_risk = self._compute_pose_risk(joint_angles, asymmetry, fatigue_score, posture_alerts, issues)
-
-        return PoseAnalysis(
-            keypoints=keypoints,
-            joint_angles=joint_angles,
-            asymmetry_scores=asymmetry,
-            fatigue_score=fatigue_score,
-            overall_pose_risk=overall_risk,
-            skeleton_connections=SKELETON_CONNECTIONS,
-            landmarks_normalized=[(lm.x, lm.y, lm.z, lm.visibility) for lm in landmarks],
-            posture_alerts=posture_alerts,
-            issues=issues,
-        )
+        try:
+            if self._use_legacy:
+                return self._analyze_legacy(frame)
+            return self._analyze_tasks(frame)
+        except Exception as exc:
+            logger.debug(f"Pose analysis error (non-fatal): {exc}")
+            return None
 
     def reset(self):
         self._baseline_angles = None
@@ -163,108 +183,145 @@ class PoseDetector:
         self._prev_angles.clear()
         self._start_time = time.time()
 
-    def _extract_keypoints(self, landmarks) -> Dict[str, Tuple[float, float, float]]:
-        kp = {}
+    # ─── Tasks API path ──────────────────────────────────────────────────
+
+    def _analyze_tasks(self, frame: np.ndarray) -> Optional[PoseAnalysis]:
+        import mediapipe as mp
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        results = self._landmarker.detect(mp_image)
+
+        if not results.pose_landmarks:
+            return None
+
+        landmarks = results.pose_landmarks[0]
+        keypoints = self._extract_keypoints_tasks(landmarks)
+        lm_normalized = [(lm.x, lm.y, lm.z, lm.visibility) for lm in landmarks]
+        return self._build_analysis(keypoints, lm_normalized)
+
+    def _extract_keypoints_tasks(self, landmarks) -> Dict:
+        kp: Dict[str, Tuple[float, float, float]] = {}
         for idx, name in LANDMARK_NAMES.items():
             if idx < len(landmarks):
                 lm = landmarks[idx]
-                # Skip very low visibility landmarks
                 if lm.visibility > 0.15:
                     kp[name] = (lm.x, lm.y, lm.visibility)
         return kp
 
+    # ─── Legacy API path ─────────────────────────────────────────────────
+
+    def _analyze_legacy(self, frame: np.ndarray) -> Optional[PoseAnalysis]:
+        import mediapipe as mp
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = self._legacy_pose.process(rgb)
+
+        if not results.pose_landmarks:
+            return None
+
+        landmarks = results.pose_landmarks.landmark
+        kp: Dict[str, Tuple[float, float, float]] = {}
+        for idx, name in LANDMARK_NAMES.items():
+            if idx < len(landmarks):
+                lm = landmarks[idx]
+                if lm.visibility > 0.15:
+                    kp[name] = (lm.x, lm.y, lm.visibility)
+
+        lm_normalized = [
+            (lm.x, lm.y, lm.z, lm.visibility) for lm in landmarks
+        ]
+        return self._build_analysis(kp, lm_normalized)
+
+    # ─── Shared analysis pipeline ────────────────────────────────────────
+
+    def _build_analysis(self, keypoints: Dict, lm_normalized: list) -> PoseAnalysis:
+        joint_angles  = self._compute_all_angles(keypoints)
+        asymmetry     = self._detect_asymmetry(joint_angles)
+        fatigue       = self._compute_fatigue(joint_angles)
+        posture_alerts = self._detect_abnormal_posture(joint_angles)
+
+        issues: List[str] = []
+        overall_risk = self._compute_pose_risk(joint_angles, asymmetry, fatigue, posture_alerts, issues)
+
+        return PoseAnalysis(
+            keypoints=keypoints,
+            joint_angles=joint_angles,
+            asymmetry_scores=asymmetry,
+            fatigue_score=fatigue,
+            overall_pose_risk=overall_risk,
+            skeleton_connections=SKELETON_CONNECTIONS,
+            landmarks_normalized=lm_normalized,
+            posture_alerts=posture_alerts,
+            issues=issues,
+        )
+
+    # ─── Geometry helpers ────────────────────────────────────────────────
+
     @staticmethod
-    def _angle_between(a: Tuple[float, float], b: Tuple[float, float], c: Tuple[float, float]) -> float:
+    def _angle_between(a, b, c) -> float:
         ba = (a[0] - b[0], a[1] - b[1])
         bc = (c[0] - b[0], c[1] - b[1])
-        dot = ba[0] * bc[0] + ba[1] * bc[1]
-        mag_ba = math.sqrt(ba[0] ** 2 + ba[1] ** 2)
-        mag_bc = math.sqrt(bc[0] ** 2 + bc[1] ** 2)
-        if mag_ba * mag_bc == 0:
+        dot = ba[0]*bc[0] + ba[1]*bc[1]
+        mag = math.sqrt(ba[0]**2 + ba[1]**2) * math.sqrt(bc[0]**2 + bc[1]**2)
+        if mag == 0:
             return 0.0
-        cos_angle = max(-1.0, min(1.0, dot / (mag_ba * mag_bc)))
-        return math.degrees(math.acos(cos_angle))
+        return math.degrees(math.acos(max(-1.0, min(1.0, dot / mag))))
 
-    def _compute_all_angles(self, keypoints: Dict) -> List[JointAngle]:
-        angles = []
+    def _compute_all_angles(self, kp: Dict) -> List[JointAngle]:
+        angles: List[JointAngle] = []
         for name, side, pa, vertex, pc in ANGLE_DEFINITIONS:
-            if pa in keypoints and vertex in keypoints and pc in keypoints:
-                a = keypoints[pa][:2]
-                b = keypoints[vertex][:2]
-                c = keypoints[pc][:2]
-                angle = self._angle_between(a, b, c)
+            if pa in kp and vertex in kp and pc in kp:
+                angle = self._angle_between(kp[pa][:2], kp[vertex][:2], kp[pc][:2])
                 angles.append(JointAngle(name=name, angle=round(angle, 1), side=side))
         return angles
 
     def _detect_asymmetry(self, angles: List[JointAngle]) -> Dict[str, float]:
-        left = {a.name: a.angle for a in angles if a.side == "left"}
+        left  = {a.name: a.angle for a in angles if a.side == "left"}
         right = {a.name: a.angle for a in angles if a.side == "right"}
-        asymmetry = {}
-        for joint in left:
-            if joint in right:
-                diff = abs(left[joint] - right[joint])
-                asymmetry[joint] = round(diff, 1)
-        return asymmetry
+        return {
+            joint: round(abs(left[joint] - right[joint]), 1)
+            for joint in left if joint in right
+        }
 
     def _detect_abnormal_posture(self, angles: List[JointAngle]) -> List[PostureAlert]:
-        """Check each joint angle against safe ranges and detect sudden changes."""
-        alerts = []
-        current_angles = {}
+        alerts: List[PostureAlert] = []
+        current: Dict[str, float] = {}
 
         for ja in angles:
             key = f"{ja.name}_{ja.side}"
-            current_angles[key] = ja.angle
+            current[key] = ja.angle
 
-            # Check safe range
             if ja.name in SAFE_ANGLE_RANGES:
                 safe_min, safe_max = SAFE_ANGLE_RANGES[ja.name]
+                side_label = f" ({ja.side})" if ja.side != "center" else ""
 
                 if ja.angle < safe_min:
-                    severity = "danger" if ja.angle < safe_min * 0.5 else "warning"
-                    side_label = f" ({ja.side})" if ja.side != "center" else ""
-                    msg = (
-                        f"⚠️ {ja.name.title()}{side_label} at {ja.angle:.0f}° — "
-                        f"below safe minimum {safe_min}°! Possible hyperextension or backward bend."
-                    )
-                    alerts.append(PostureAlert(
-                        joint=ja.name, side=ja.side, message=msg,
-                        severity=severity, angle=ja.angle,
-                        safe_min=safe_min, safe_max=safe_max,
-                    ))
+                    sev = "danger" if ja.angle < safe_min * 0.5 else "warning"
+                    msg = (f"⚠️ {ja.name.title()}{side_label} at {ja.angle:.0f}° — "
+                           f"below safe min {safe_min}°! Possible hyperextension.")
+                    alerts.append(PostureAlert(ja.name, ja.side, msg, sev,
+                                               ja.angle, safe_min, safe_max))
                     ja.is_safe = False
                     ja.threshold_exceeded_by = safe_min - ja.angle
 
                 elif ja.angle > safe_max:
-                    severity = "danger" if ja.angle > safe_max + 10 else "warning"
-                    side_label = f" ({ja.side})" if ja.side != "center" else ""
-                    msg = (
-                        f"⚠️ {ja.name.title()}{side_label} at {ja.angle:.0f}° — "
-                        f"above safe maximum {safe_max}°! Unnatural position detected."
-                    )
-                    alerts.append(PostureAlert(
-                        joint=ja.name, side=ja.side, message=msg,
-                        severity=severity, angle=ja.angle,
-                        safe_min=safe_min, safe_max=safe_max,
-                    ))
+                    sev = "danger" if ja.angle > safe_max + 10 else "warning"
+                    msg = (f"⚠️ {ja.name.title()}{side_label} at {ja.angle:.0f}° — "
+                           f"above safe max {safe_max}°! Unnatural position.")
+                    alerts.append(PostureAlert(ja.name, ja.side, msg, sev,
+                                               ja.angle, safe_min, safe_max))
                     ja.is_safe = False
                     ja.threshold_exceeded_by = ja.angle - safe_max
 
-            # Check for sudden angle change (potential injury moment)
             if key in self._prev_angles:
                 change = abs(ja.angle - self._prev_angles[key])
                 if change > SUDDEN_ANGLE_CHANGE_THRESHOLD:
                     side_label = f" ({ja.side})" if ja.side != "center" else ""
-                    msg = (
-                        f"🚨 Sudden {ja.name.title()}{side_label} movement! "
-                        f"Changed {change:.0f}° in one frame. Possible injury!"
-                    )
-                    alerts.append(PostureAlert(
-                        joint=ja.name, side=ja.side, message=msg,
-                        severity="danger", angle=ja.angle,
-                        safe_min=0, safe_max=0,
-                    ))
+                    msg = (f"🚨 Sudden {ja.name.title()}{side_label} movement! "
+                           f"Changed {change:.0f}° in one frame. Possible injury!")
+                    alerts.append(PostureAlert(ja.name, ja.side, msg, "danger",
+                                               ja.angle, 0, 0))
 
-        self._prev_angles = current_angles
+        self._prev_angles = current
         return alerts
 
     def _compute_fatigue(self, angles: List[JointAngle]) -> float:
@@ -281,55 +338,57 @@ class PoseDetector:
         if len(self._angle_history) < 5:
             return 0.0
 
-        total_drift = 0.0
-        count = 0
-        for key, baseline_val in self._baseline_angles.items():
-            if key in angle_dict:
-                drift = abs(angle_dict[key] - baseline_val)
-                total_drift += drift
-                count += 1
-
-        if count == 0:
+        drifts = [
+            abs(angle_dict[k] - self._baseline_angles[k])
+            for k in self._baseline_angles if k in angle_dict
+        ]
+        if not drifts:
             return 0.0
-
-        avg_drift = total_drift / count
-        fatigue = min(100.0, (avg_drift / FATIGUE_ANGLE_DRIFT_THRESHOLD) * 100)
-        return round(fatigue, 1)
+        avg_drift = sum(drifts) / len(drifts)
+        return round(min(100.0, (avg_drift / FATIGUE_ANGLE_DRIFT_THRESHOLD) * 100), 1)
 
     def _compute_pose_risk(self, angles, asymmetry, fatigue, posture_alerts, issues) -> float:
         risk = 0.0
         for a in angles:
             if a.name == "knee" and a.angle < 40:
-                risk += 25
-                issues.append(f"Dangerous {a.side} knee angle: {a.angle}°")
+                risk += 25; issues.append(f"Dangerous {a.side} knee angle: {a.angle}°")
             elif a.name == "spine" and a.angle < 120:
-                risk += 30
-                issues.append(f"Excessive spinal flexion: {a.angle}°")
+                risk += 30; issues.append(f"Excessive spinal flexion: {a.angle}°")
             elif a.name == "shoulder" and a.angle > 170:
-                risk += 20
-                issues.append(f"Shoulder hyperextension ({a.side}): {a.angle}°")
+                risk += 20; issues.append(f"Shoulder hyperextension ({a.side}): {a.angle}°")
 
         for joint, diff in asymmetry.items():
             if diff > 15:
-                risk += 10
-                issues.append(f"High {joint} asymmetry: {diff}° difference")
+                risk += 10; issues.append(f"High {joint} asymmetry: {diff}°")
 
         if fatigue > 50:
-            risk += fatigue * 0.2
-            issues.append(f"Fatigue detected: {fatigue:.0f}%")
+            risk += fatigue * 0.2; issues.append(f"Fatigue detected: {fatigue:.0f}%")
 
-        # Add risk from posture alerts
         for alert in posture_alerts:
-            if alert.severity == "danger":
-                risk += 30
-            else:
-                risk += 15
+            risk += 30 if alert.severity == "danger" else 15
             issues.append(alert.message)
 
         return min(100.0, round(risk, 1))
 
     def __del__(self):
         try:
-            self.landmarker.close()
+            if self._landmarker:
+                self._landmarker.close()
         except Exception:
             pass
+        try:
+            if self._legacy_pose:
+                self._legacy_pose.close()
+        except Exception:
+            pass
+
+
+# ─── Lazy Singleton ──────────────────────────────────────────────────────
+
+_pose_detector: Optional[PoseDetector] = None
+
+def get_pose_detector() -> PoseDetector:
+    global _pose_detector
+    if _pose_detector is None:
+        _pose_detector = PoseDetector()
+    return _pose_detector
